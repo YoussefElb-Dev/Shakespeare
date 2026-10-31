@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../data/app_controller.dart';
 import '../domain/models.dart';
+import 'asechka_button.dart';
 import 'glass.dart';
 import 'liquid_orb.dart';
+import 'quote_bubble.dart';
 import 'strings.dart';
 
 enum _Stage { home, categories, customize, generating, quote, library }
@@ -28,6 +30,7 @@ class QuoteApp extends StatefulWidget {
 class _QuoteAppState extends State<QuoteApp> {
   _Stage _stage = _Stage.home;
   bool _favorites = true;
+  int _generation = 0;
   final _prompt = TextEditingController();
   final _customPrompt = TextEditingController();
   AppController get app => widget.controller;
@@ -77,7 +80,10 @@ class _QuoteAppState extends State<QuoteApp> {
   }
 
   void _back() {
-    if (_stage == _Stage.generating) app.cancelGeneration();
+    if (_stage == _Stage.generating) {
+      _generation++;
+      app.cancelGeneration();
+    }
     _go(switch (_stage) {
       _Stage.customize => _Stage.categories,
       _Stage.quote => _Stage.customize,
@@ -88,9 +94,12 @@ class _QuoteAppState extends State<QuoteApp> {
   }
 
   Future<void> _generate() async {
+    final generation = ++_generation;
     _go(_Stage.generating);
     final success = await app.generate();
-    if (!mounted || _stage != _Stage.generating) return;
+    if (!mounted || generation != _generation || _stage != _Stage.generating) {
+      return;
+    }
     if (success) {
       if (app.settings.haptics) HapticFeedback.lightImpact();
       setState(() => _stage = _Stage.quote);
@@ -140,12 +149,14 @@ class _QuoteAppState extends State<QuoteApp> {
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeIn,
               child: KeyedSubtree(
-                key: ValueKey(_stage),
+                key: ValueKey(
+                  _stage == _Stage.generating ? _Stage.quote : _stage,
+                ),
                 child: switch (_stage) {
                   _Stage.home => _home(),
                   _Stage.categories => _categories(),
                   _Stage.customize => _customize(),
-                  _Stage.generating => _generating(),
+                  _Stage.generating => _quote(),
                   _Stage.quote => _quote(),
                   _Stage.library => _library(),
                 },
@@ -230,6 +241,8 @@ class _QuoteAppState extends State<QuoteApp> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     key: const Key('home-prompt'),
                     controller: _prompt,
                     maxLength: 500,
@@ -418,6 +431,8 @@ class _QuoteAppState extends State<QuoteApp> {
                   vertical: 4,
                 ),
                 child: TextField(
+                  onTapOutside: (_) =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
                   key: const Key('custom-prompt'),
                   controller: _customPrompt,
                   maxLength: 500,
@@ -468,175 +483,120 @@ class _QuoteAppState extends State<QuoteApp> {
     child: Text(text, style: const TextStyle(fontSize: 13, color: _muted)),
   );
 
-  Widget _generating() => Column(
-    children: [
-      _bar(),
-      Expanded(
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                height: math.min(420, constraints.maxHeight * 0.68),
-                width: constraints.maxWidth,
-                child: LiquidOrb(energy: 1, animate: widget.animateOrb),
-              ),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  s.t('creating'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    height: 1.7,
-                    color: _muted,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 70),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-
   Widget _quote() {
-    final quote = app.current!;
-    final language = quote.settings.language;
+    final quote = app.current;
+    final generating = _stage == _Stage.generating;
+    final language = (quote?.settings ?? app.settings).language;
     return Column(
       children: [
-        _bar(more: true),
+        _bar(more: !generating),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) => Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: constraints.maxWidth + 70,
-                  height: math.min(constraints.maxHeight + 80, 600),
-                  child: Transform.scale(
-                    scale: 1.2,
-                    child: LiquidOrb(
-                      hue: quote.settings.category.index * 0.2,
-                      energy: 0.35,
-                      animate: widget.animateOrb,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: math.max(80, constraints.maxHeight * 0.64),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SelectableText(
-                            quote.text,
-                            key: const Key('quote-text'),
-                            textAlign: TextAlign.center,
-                            textDirection: language.rtl
-                                ? TextDirection.rtl
-                                : TextDirection.ltr,
-                            style: TextStyle(
-                              fontFamily: language == QuoteLanguage.hebrew
-                                  ? 'Hebrew'
-                                  : language.rtl
-                                  ? 'Naskh'
-                                  : 'Cormorant',
-                              fontSize: quote.text.length > 350 ? 24 : 29,
-                              height: language.rtl ? 1.9 : 1.32,
-                              color: const Color(0xfff4ecf4),
-                              fontWeight: FontWeight.w400,
-                              shadows: const [
-                                Shadow(color: Colors.black, blurRadius: 12),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 26),
-                          Container(
-                            width: 30,
-                            height: 0.7,
-                            color: const Color(0xffb2a3b4),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          child: QuoteBubble(
+            key: const Key('quote-bubble'),
+            quote: quote,
+            generating: generating,
+            creatingLabel: s.t('creating'),
+            animateOrb: widget.animateOrb,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(38, 8, 38, 22),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              RoundButton(
-                icon: CupertinoIcons.doc_on_doc,
-                label: s.t('copy'),
-                onTap: () async {
-                  await Clipboard.setData(ClipboardData(text: quote.text));
-                  if (mounted) _toast(s.t('copied'));
-                },
-              ),
-              RoundButton(
-                key: const Key('favorite'),
-                icon: app.isFavorite(quote)
-                    ? CupertinoIcons.heart_fill
-                    : CupertinoIcons.heart,
-                label: s.t(app.isFavorite(quote) ? 'unfavorite' : 'favorite'),
-                selected: app.isFavorite(quote),
-                onTap: () {
-                  _haptic();
-                  app.toggleFavorite(quote);
-                  _toast(s.t(app.isFavorite(quote) ? 'saved' : 'removed'));
-                },
-              ),
-              Builder(
-                builder: (shareContext) => RoundButton(
-                  icon: CupertinoIcons.share,
-                  label: s.t('share'),
-                  onTap: () async {
-                    final box = shareContext.findRenderObject()! as RenderBox;
-                    try {
-                      await SharePlus.instance.share(
-                        ShareParams(
-                          text: quote.text,
-                          sharePositionOrigin:
-                              box.localToGlobal(Offset.zero) & box.size,
+        IgnorePointer(
+          ignoring: generating,
+          child: ExcludeSemantics(
+            excluding: generating,
+            child: AnimatedOpacity(
+              opacity: generating ? 0 : 1,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(38, 8, 38, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        RoundButton(
+                          icon: CupertinoIcons.doc_on_doc,
+                          label: s.t('copy'),
+                          onTap: () async {
+                            if (quote == null) return;
+                            await Clipboard.setData(
+                              ClipboardData(text: quote.text),
+                            );
+                            if (mounted) _toast(s.t('copied'));
+                          },
                         ),
-                      );
-                    } on Object {
-                      if (mounted) _toast(s.t('shareError'));
-                    }
-                  },
-                ),
+                        RoundButton(
+                          key: const Key('favorite'),
+                          icon: quote != null && app.isFavorite(quote)
+                              ? CupertinoIcons.heart_fill
+                              : CupertinoIcons.heart,
+                          label: s.t(
+                            quote != null && app.isFavorite(quote)
+                                ? 'unfavorite'
+                                : 'favorite',
+                          ),
+                          selected: quote != null && app.isFavorite(quote),
+                          onTap: () {
+                            if (quote == null) return;
+                            _haptic();
+                            app.toggleFavorite(quote);
+                            _toast(
+                              s.t(app.isFavorite(quote) ? 'saved' : 'removed'),
+                            );
+                          },
+                        ),
+                        Builder(
+                          builder: (shareContext) => RoundButton(
+                            icon: CupertinoIcons.share,
+                            label: s.t('share'),
+                            onTap: () async {
+                              if (quote == null) return;
+                              final box =
+                                  shareContext.findRenderObject()! as RenderBox;
+                              try {
+                                await SharePlus.instance.share(
+                                  ShareParams(
+                                    text: quote.text,
+                                    sharePositionOrigin:
+                                        box.localToGlobal(Offset.zero) &
+                                        box.size,
+                                  ),
+                                );
+                              } on Object {
+                                if (mounted) _toast(s.t('shareError'));
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AsechkaButton(quote: quote, strings: s),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: GlassButton(
+                      key: const Key('regenerate'),
+                      label: s.t('again'),
+                      icon: CupertinoIcons.refresh,
+                      onTap: _generate,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+                    child: Text(
+                      quote?.isPreview == true
+                          ? s.t('previewQuote')
+                          : '${language.nativeName} · ${s.label((quote?.settings ?? app.settings).category)} · ${s.label((quote?.settings ?? app.settings).tone)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 10, color: _muted),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: GlassButton(
-            key: const Key('regenerate'),
-            label: s.t('again'),
-            icon: CupertinoIcons.refresh,
-            onTap: _generate,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
-          child: Text(
-            quote.isPreview
-                ? s.t('previewQuote')
-                : '${language.nativeName} · ${s.label(quote.settings.category)} · ${s.label(quote.settings.tone)}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, color: _muted),
+            ),
           ),
         ),
       ],
@@ -654,21 +614,28 @@ class _QuoteAppState extends State<QuoteApp> {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (context) => Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.86,
-        maxWidth: 540,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xff101113).withValues(alpha: 0.98),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
-          child: child,
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: math.max(
+            180,
+            MediaQuery.sizeOf(context).height * 0.86 -
+                MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          maxWidth: 540,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xff101113).withValues(alpha: 0.98),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
+            child: child,
+          ),
         ),
       ),
     ),
@@ -715,6 +682,8 @@ class _QuoteAppState extends State<QuoteApp> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: TextField(
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     autocorrect: false,
                     decoration: InputDecoration(
                       hintText: s.t('searchLanguage'),
@@ -896,7 +865,7 @@ class _QuoteAppState extends State<QuoteApp> {
                 }
               : null,
         ),
-        const Text('1.0.0', style: TextStyle(color: _muted, fontSize: 10)),
+        const Text('1.1.0', style: TextStyle(color: _muted, fontSize: 10)),
       ],
     ),
   );
@@ -1091,6 +1060,7 @@ class _QuoteAppState extends State<QuoteApp> {
 
   @override
   void dispose() {
+    _generation++;
     _prompt.dispose();
     _customPrompt.dispose();
     super.dispose();
