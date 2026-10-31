@@ -14,7 +14,7 @@ This checkout is published at [YoussefElb-Dev/Shakespeare](https://github.com/Yo
 
 Without a gateway endpoint, both apps use a clearly labelled offline preview. Without Android signing secrets, the APK uses a disposable debug signing key. Without Apple distribution secrets, iOS validates a simulator app and builds an unsigned ARM64 **device IPA** for re-signing with Sideloadly or AltStore Classic. The separate simulator ZIP cannot run on an iPhone. A configured endpoint enables live AI independently of distribution signing. See [validation status](docs/VALIDATION.md) for what has actually been tested.
 
-Rendered Android screens: [home](docs/screenshots/home.png), [categories](docs/screenshots/categories.png), [customization](docs/screenshots/customize.png), [English](docs/screenshots/english.png), [Arabic](docs/screenshots/arabic.png), [Hebrew](docs/screenshots/hebrew.png).
+Rendered Android screens: [home](docs/screenshots/home.png), [categories](docs/screenshots/categories.png), [customization](docs/screenshots/customize.png), [generating](docs/screenshots/generating.png), [emerging words](docs/screenshots/emerging.png), [English](docs/screenshots/english.png), [Arabic](docs/screenshots/arabic.png), [Hebrew](docs/screenshots/hebrew.png).
 
 For personal sideloading, no Apple certificate is needed in GitHub. Download the `Shakespeare-iOS-Unsigned-Sideload` artifact, extract the IPA, and import it into your sideloading tool. That tool must sign it using your Apple account. AI access still needs the Gemini gateway endpoint.
 
