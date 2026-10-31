@@ -2,7 +2,7 @@
 
 Cloudflare Worker with a SQLite-backed Durable Object quota gate. AI provider keys never enter the mobile app. The gateway uses the Google Gemini generateContent API with a JSON quote schema, original writing instructions for every language, bounded inputs/outputs, refusal detection, timeouts, and no automatic provider retries that could multiply costs.
 
-The owner’s gateway is deployed at `https://shakespeare-gateway.youssef-elboraei-2010.workers.dev/v1/quotes`, with the dedicated Shakespeare Google AI Studio key stored as an encrypted Worker secret. Live English, Arabic, Egyptian Arabic, Hebrew, and Urdu generation has been verified. Gemini 3.5 Flash-Lite is used because Google rejects the older 2.5 Flash-Lite model for new users.
+The owner’s gateway is deployed at `https://shakespeare-gateway.youssef-elboraei-2010.workers.dev/v1/quotes`, with the dedicated Shakespeare Google AI Studio key stored as an encrypted Worker secret. Live generation has been verified in all twelve supported languages. The actual Dart app client also passed English and Urdu requests. Gemini 3.5 Flash-Lite is used because Google rejects the older 2.5 Flash-Lite model for new users.
 
 ## Deploy
 

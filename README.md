@@ -8,7 +8,7 @@ Includes original AI quote generation through a server-side gateway; nine catego
 
 This checkout is published at [YoussefElb-Dev/Shakespeare](https://github.com/YoussefElb-Dev/Shakespeare). Its public repository uses standard GitHub runners. The Gemini free-tier gateway is deployed, and the repository’s `QUOTE_API_URL` variable is configured for live generation. The Google AI Studio key is an encrypted Cloudflare Worker secret; it is absent from source and mobile binaries.
 
-Without credentials, Android builds a clearly labelled offline preview APK with a disposable debug signing key. iOS validates a simulator app and builds an unsigned ARM64 **device IPA** for re-signing with Sideloadly or AltStore Classic. The separate simulator ZIP cannot run on an iPhone. Signed production builds require the backend endpoint and platform signing credentials below. See [validation status](docs/VALIDATION.md) for what has actually been tested.
+Without a gateway endpoint, both apps use a clearly labelled offline preview. Without Android signing secrets, the APK uses a disposable debug signing key. Without Apple distribution secrets, iOS validates a simulator app and builds an unsigned ARM64 **device IPA** for re-signing with Sideloadly or AltStore Classic. The separate simulator ZIP cannot run on an iPhone. A configured endpoint enables live AI independently of distribution signing. See [validation status](docs/VALIDATION.md) for what has actually been tested.
 
 Rendered Android screens: [home](docs/screenshots/home.png), [categories](docs/screenshots/categories.png), [customization](docs/screenshots/customize.png), [English](docs/screenshots/english.png), [Arabic](docs/screenshots/arabic.png), [Hebrew](docs/screenshots/hebrew.png).
 
