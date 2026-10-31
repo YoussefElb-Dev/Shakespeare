@@ -1,0 +1,146 @@
+name: iOS IPA
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: Must match your distribution provisioning profile
+        type: choice
+        options: [release-testing, app-store-connect]
+        default: release-testing
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    outputs:
+      signed: ${{ steps.signing.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select pinned Xcode
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.2.app/Contents/Developer
+          xcodebuild -version
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.10'
+          channel: stable
+          cache: true
+      - name: Install pinned CocoaPods
+        # A user-writable pinned Ruby avoids macOS system-gem permissions.
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3.10'
+      - name: Install CocoaPods
+        run: gem install cocoapods -v 1.16.2 --no-document
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Format, analyze, and test
+        run: |
+          dart format --output=none --set-exit-if-changed lib test integration_test test_driver
+          flutter analyze --fatal-infos
+          flutter test --coverage
+      - name: Install native dependencies
+        run: pod install --project-directory=ios
+      - name: Configure Apple distribution signing
+        id: signing
+        if: github.event_name != 'pull_request'
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'app.shakespeare.shakespeare' }}
+          IOS_EXPORT_METHOD: ${{ inputs.export_method || vars.IOS_EXPORT_METHOD || 'release-testing' }}
+        run: python3 scripts/ci/ios_sign.py
+      - name: Resolve build configuration
+        id: config
+        env:
+          QUOTE_API_URL: ${{ secrets.QUOTE_API_URL || vars.QUOTE_API_URL }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: python3 scripts/ci/configure_build.py
+      - name: Compile device IPA and validate simulator
+        env:
+          QUOTE_API_URL: ${{ secrets.QUOTE_API_URL || vars.QUOTE_API_URL }}
+          PREVIEW: ${{ steps.config.outputs.preview }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+          BUILD_VERSION: ${{ steps.config.outputs.version }}
+        run: |
+          set -euo pipefail
+          args=(--build-number="$GITHUB_RUN_NUMBER" "--dart-define=QUOTE_API_URL=$QUOTE_API_URL" "--dart-define=PREVIEW_MODE=$PREVIEW")
+          if [[ -n "$BUILD_VERSION" ]]; then args+=(--build-name="$BUILD_VERSION"); fi
+          mkdir -p dist
+          if [[ "$SIGNED" == 'true' ]]; then
+            flutter build ipa --release --export-options-plist="$RUNNER_TEMP/ExportOptions.plist" "${args[@]}"
+            python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          files = list(Path('build/ios/ipa').glob('*.ipa'))
+          if len(files) != 1: raise SystemExit('Expected exactly one successfully exported IPA.')
+          shutil.copyfile(files[0], 'dist/Shakespeare-iOS.ipa')
+          PY
+            (cd dist && shasum -a 256 Shakespeare-iOS.ipa > Shakespeare-iOS.sha256)
+          else
+            flutter build ios --simulator --debug --no-codesign "${args[@]}"
+            ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app dist/Shakespeare-iOS-Simulator.zip
+            flutter build ios --release --no-codesign "${args[@]}"
+            python3 scripts/ci/package_unsigned_ipa.py build/ios/iphoneos/Runner.app dist/Shakespeare-iOS-Unsigned.ipa
+            echo 'Built an unsigned ARM64 iPhone device IPA. Import Shakespeare-iOS-Unsigned.ipa into Sideloadly, AltStore Classic, or another sideloader to sign and install it. The separate simulator ZIP cannot run on an iPhone.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload signed IPA
+        if: steps.signing.outputs.signed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shakespeare-iOS
+          path: |
+            dist/Shakespeare-iOS.ipa
+            dist/Shakespeare-iOS.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload simulator validation output
+        if: steps.signing.outputs.signed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shakespeare-iOS-Simulator-Not-An-IPA
+          path: dist/Shakespeare-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload unsigned device IPA for sideloading
+        if: steps.signing.outputs.signed != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shakespeare-iOS-Unsigned-Sideload
+          path: |
+            dist/Shakespeare-iOS-Unsigned.ipa
+            dist/Shakespeare-iOS-Unsigned.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean signing assets and keychain
+        if: always()
+        run: python3 scripts/ci/ios_cleanup.py
+      - name: Report failure
+        if: failure()
+        run: echo 'iOS validation, signing, or compilation failed. Inspect the first failed step. No failed output is published.' >> "$GITHUB_STEP_SUMMARY"
+  release:
+    needs: build
+    if: github.ref_type == 'tag' && needs.build.outputs.signed == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Shakespeare-iOS
+          path: release-artifacts
+      - name: Attach signed IPA to versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/publish_release.py
