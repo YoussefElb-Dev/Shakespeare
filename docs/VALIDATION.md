@@ -20,7 +20,7 @@ The delivered `dist/Shakespeare-Android.apk` is a labelled offline preview, not 
 
 ## Requires external setup
 
-- GitHub-hosted execution: private repository created at https://github.com/YoussefElb-Dev/Shakespeare. Initial hosted runs are pending; update this record after their results.
+- GitHub-hosted execution: repository created at https://github.com/YoussefElb-Dev/Shakespeare. The initial Android, iOS, and gateway jobs were rejected before any steps ran: GitHub reported failed account payments or a spending-limit block. No hosted IPA has been compiled from these runs.
 - iOS compilation/export: the workflow builds an unsigned device IPA for sideloader re-signing without Apple distribution secrets. Hosted compilation and native rendering still need verification.
 - Live AI: Gemini free-tier integration is implemented and tested against mocked provider responses. Cloudflare hosting login and a dedicated Google AI Studio key are needed for deployment and a live generation check. Offline builds use clearly labelled sample quotes.
 - Production Android signing: requires the owner’s release keystore secrets; local preview APKs use the debug signing key.
