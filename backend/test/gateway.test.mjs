@@ -10,15 +10,15 @@ const request = (body = input, extra = {}) => new Request('https://studio.exampl
 const providerBody = (text = 'You are the quiet I come home to.', language = 'en') => ({
   candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ text, language }) }] } }] });
 const env = (quotaStatus = 204) => ({ GEMINI_API_KEY: 'test-only', RATE_LIMIT_SALT: 'a'.repeat(32),
-  GEMINI_MODEL: 'gemini-2.5-flash-lite', GLOBAL_DAILY_LIMIT: '1000', ALLOWED_ORIGINS: '',
+  GEMINI_MODEL: 'gemini-3.5-flash-lite', GLOBAL_DAILY_LIMIT: '1000', ALLOWED_ORIGINS: '',
   QUOTA: { idFromName: x => x, get: () => ({ fetch: async () => new Response(null, { status: quotaStatus }) }) } });
 
 test('all twelve supported languages have valid generation requests', () => {
   assert.equal(Object.keys(languages).length, 12);
   for (const language of Object.keys(languages)) {
     const config = providerRequest(validateInput({ ...input, language }));
-    assert.equal(config.generationConfig.maxOutputTokens, 600);
-    assert.equal(config.generationConfig.thinkingConfig.thinkingBudget, 0);
+    assert.equal(config.generationConfig.maxOutputTokens, 1024);
+    assert.equal(config.generationConfig.thinkingConfig.thinkingLevel, 'minimal');
     assert.deepEqual(config.generationConfig.responseJsonSchema.properties.language.enum, [language]);
     assert.match(config.systemInstruction.parts[0].text, /original/);
   }
@@ -57,7 +57,7 @@ test('gateway returns a server-generated ID and validated quote', async () => {
   let calls = 0;
   const response = await handleRequest(request(), env(), async (url, options) => {
     calls++;
-    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     assert.equal(options.headers['x-goog-api-key'], 'test-only');
     assert.equal(JSON.parse(options.body).generationConfig.responseMimeType, 'application/json');
     return Response.json(providerBody());
@@ -86,6 +86,24 @@ test('missing secrets fail closed and provider errors do not leak data', async (
   const response = await handleRequest(request(), env(), async () => { throw new Error('secret-provider-details'); });
   assert.equal(response.status, 502);
   assert(!(await response.text()).includes('secret-provider-details'));
+});
+
+test('upstream failure diagnostics exclude provider messages and credentials', async () => {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const response = await handleRequest(request(), env(), async () => Response.json({
+      error: { status: 'INVALID_ARGUMENT', message: 'secret-provider-details',
+        details: [{ reason: 'API_KEY_INVALID' }] },
+    }, { status: 400 }));
+    assert.equal(response.status, 502);
+    assert(!(await response.text()).includes('secret-provider-details'));
+    assert(!JSON.stringify(warnings).includes('secret-provider-details'));
+    assert(!JSON.stringify(warnings).includes('test-only'));
+  } finally {
+    console.warn = original;
+  }
 });
 test('gateway checks body limits, CORS, methods, and routes', async () => {
   assert.equal((await handleRequest(request({ ...input, prompt: 'x'.repeat(15000) }), env())).status, 400);

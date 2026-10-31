@@ -63,7 +63,15 @@ export async function handleRequest(request, env, fetchProvider = fetch) {
       headers: { 'x-goog-api-key': env.GEMINI_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify(providerRequest(input)), signal: AbortSignal.timeout(30_000) });
     if (response.status === 429) return respond(429, { error: 'The free AI quota is busy. Please try again later.' }, { 'Retry-After': '60' });
-    if (!response.ok) return respond(502, { error: 'The writing provider is unavailable.' });
+    if (!response.ok) {
+      // Status metadata only: never log prompts, credentials, or provider messages.
+      let detail;
+      try { detail = (await response.json()).error; } catch { /* Non-JSON upstream failure. */ }
+      console.warn('Gemini rejected generation', response.status,
+        /^[A-Z_]+$/.test(detail?.status ?? '') ? detail.status : 'UNKNOWN',
+        (detail?.details ?? []).map(item => item.reason).filter(reason => /^[A-Z_]+$/.test(reason ?? '')));
+      return respond(502, { error: 'The writing provider is unavailable.' });
+    }
     const quote = parseProviderResponse(await response.json(), input.language);
     return respond(200, { id: crypto.randomUUID(), ...quote });
   } catch {

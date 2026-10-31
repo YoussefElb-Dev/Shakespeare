@@ -4,7 +4,9 @@ A Flutter quote studio for iOS and Android, based on the supplied dark, liquid-o
 
 Includes original AI quote generation through a server-side gateway; nine categories; twelve languages; four lengths; eight tones; regeneration; copy and native sharing; haptics; local favorites, history, and settings. Arabic and Hebrew have translated interfaces and RTL layouts. Egyptian Arabic uses its own original colloquial generation instructions. Urdu quotes also use RTL. Other languages use the English interface. Fonts and icons are bundled; no runtime font downloads.
 
-**Start with GitHub Actions:** push this repository to a GitHub repositoryâ€™s `main` branch. Open **Actions â†’ Android APK / iOS IPA â†’ Run workflow**. Download successful outputs from the runâ€™s **Artifacts** section. You do not need a local Android or Apple development environment to use these workflows.
+**Start with GitHub Actions:** push this repository to a GitHub repository’s `main` branch. Open **Actions → Android APK / iOS IPA → Run workflow**. Download successful outputs from the run’s **Artifacts** section. You do not need a local Android or Apple development environment to use these workflows.
+
+This checkout is published at [YoussefElb-Dev/Shakespeare](https://github.com/YoussefElb-Dev/Shakespeare). Its public repository uses standard GitHub runners. The Gemini free-tier gateway is deployed, and the repository’s `QUOTE_API_URL` variable is configured for live generation. The Google AI Studio key is an encrypted Cloudflare Worker secret; it is absent from source and mobile binaries.
 
 Without credentials, Android builds a clearly labelled offline preview APK with a disposable debug signing key. iOS validates a simulator app and builds an unsigned ARM64 **device IPA** for re-signing with Sideloadly or AltStore Classic. The separate simulator ZIP cannot run on an iPhone. Signed production builds require the backend endpoint and platform signing credentials below. See [validation status](docs/VALIDATION.md) for what has actually been tested.
 
@@ -16,7 +18,7 @@ For personal sideloading, no Apple certificate is needed in GitHub. Download the
 
 1. Create an empty GitHub repository. Commit these files (`git add .` then `git commit -m "Build Shakespeare"`), add the repository as `origin`, and push to `main` (`git push -u origin HEAD:main`). If using the source ZIP, run `git init` first. No account credentials or remote repository are included.
 2. The workflows run on pushes to `main`, pull requests, manual dispatch, and `v*` tags. Pull requests never install signing credentials. Fork PRs use preview mode when secrets are unavailable.
-3. Deploy the [AI gateway](backend/README.md). Set `QUOTE_API_URL` in **Settings â†’ Secrets and variables â†’ Actions**, as a secret or repository variable, to the full HTTPS endpoint, e.g. `https://your-worker.your-subdomain.workers.dev/v1/quotes`. This is a public endpoint, not an AI provider key.
+3. Deploy the [AI gateway](backend/README.md). Set `QUOTE_API_URL` in **Settings → Secrets and variables → Actions**, as a secret or repository variable, to the full HTTPS endpoint, e.g. `https://your-worker.your-subdomain.workers.dev/v1/quotes`. This is a public endpoint, not an AI provider key.
 4. Configure the signing secrets below for production outputs. Incomplete signing configurations fail with a clear error. With no signing secrets, validation and preview builds still run. Signed builds fail if `QUOTE_API_URL` is missing; offline previews are never attached as production releases.
 5. Download `Shakespeare-Android.apk` and `Shakespeare-iOS-Unsigned.ipa` for sideloading (or `Shakespeare-iOS.ipa` when Apple distribution signing is configured) from Actions artifacts. The workflow summary explains exactly what was built and how it was signed. SHA-256 checksums accompany production outputs and Android previews.
 
@@ -29,9 +31,9 @@ For personal sideloading, no Apple certificate is needed in GitHub. Download the
 | `ANDROID_KEY_ALIAS` | Signing key alias |
 | `ANDROID_KEY_PASSWORD` | Signing key password |
 
-Keep a secure backup of the release keystore. A preview APK uses a disposable debug key, so uninstall an older preview if Android reports a signing conflict. Preview builds are not Play Store releases. The release APK is built in release mode with shrinking enabled by Flutterâ€™s toolchain.
+Keep a secure backup of the release keystore. A preview APK uses a disposable debug key, so uninstall an older preview if Android reports a signing conflict. Preview builds are not Play Store releases. The release APK is built in release mode with shrinking enabled by Flutter’s toolchain.
 
-To create a new release keystore locally, use `keytool -genkeypair -v -keystore shakespeare-release.jks -alias shakespeare -keyalg RSA -keysize 2048 -validity 10000` and follow its password prompts. Never commit the resulting file. For Google Play, use the manual workflowâ€™s `build_aab` option; signed tag builds also generate `Shakespeare-Android.aab` automatically.
+To create a new release keystore locally, use `keytool -genkeypair -v -keystore shakespeare-release.jks -alias shakespeare -keyalg RSA -keysize 2048 -validity 10000` and follow its password prompts. Never commit the resulting file. For Google Play, use the manual workflow’s `build_aab` option; signed tag builds also generate `Shakespeare-Android.aab` automatically.
 
 ### Apple signing secrets
 
@@ -42,7 +44,7 @@ To create a new release keystore locally, use `keytool -genkeypair -v -keystore 
 | `IOS_PROVISION_PROFILE_BASE64` | Base64 of a matching distribution `.mobileprovision` profile |
 | `APPLE_TEAM_ID` | Your Apple Developer team ID |
 
-The workflow validates the profileâ€™s expiration, team, bundle identifier, and distribution method; imports the certificate into an ephemeral keychain; signs Runner; and exports the IPA. Cleanup always removes signing files and restores the keychain search list.
+The workflow validates the profile’s expiration, team, bundle identifier, and distribution method; imports the certificate into an ephemeral keychain; signs Runner; and exports the IPA. Cleanup always removes signing files and restores the keychain search list.
 
 Optional repository variables:
 
